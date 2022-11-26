@@ -1,10 +1,28 @@
 sudo: required
 services: 
   - docker #To be preinstalled as soon as we try to run our build, tests etc.
+env:
+  global:
+    - SHA=$(git rev-parse HEAD) #Determinates the current sha and adds it to the environment variable inside of our travis environment
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1 #To make sure GC CLI doens't prompt an user input
 before_install:
-  - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d
+  - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d #Takes encr file, decrypt it and adds it to our / directory
   - curl https://sdk.cloud.google.com | bash > /dev/null;
   - source $HOME/google-cloud-sdk/path.bash.inc #Config that is going to modify our shell inside Travis
   - gcloud components update kubectl
   - gcloud auth activate-service-account --key-file service-account.json #Activate service account providing credentials with service-account.json
+  - gcloud config set project multi-k8s-369808 
+  - gcloud config set compute/zone europe-central2-a
+  - gcloud container clusters get-credentials multi-cluster
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build -t petarda3/react-test -f ./client/Dockerfile.dev ./client #Samo ovaj fajl ima dependencies za pokretanje testova!
+
+script:
+  - docker run -e CI=true petarda3/react-test npm test
+
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on: 
+    branch: master 
 
